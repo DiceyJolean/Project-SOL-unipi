@@ -92,7 +92,6 @@ int saveFile(char* filename, void* content){
 		fputs(content, file);
 
 	fclose(file);
-	free(filename);
 
 	return 0;
 }
