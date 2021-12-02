@@ -998,21 +998,35 @@ int main(int argc, char* argv[]) {
     }
 
     quit: {
+        if ( DEBUG ) printf("SERVER: Sono alla goto di uscita rapida\n");
         // Chiudo tutti gli fd, invio un segnale di chiusura ai worker e attendo la loro terminazione
-        int termfd = -1;
+        // int termfd = -1;
         for ( int i = 0; i < max_worker; i++ )
-            enqueue(fdqueue, termfd);
+            enqueue(fdqueue, -1);
         
-        for ( int i = 0; i < fdmax; i++ ){
+        if ( DEBUG ) printf("SERVER: Ho inviato un segnale di terminazione ai worker\n");
+        
+        // Ignoro i file descriptor di stdout, stdin, stderr e quelli dei worker
+        for ( int i = 3 + max_worker; i < fdmax; i++ ){
+            if ( DEBUG ) printf("SERVER: Tolgo il file descriptor %d dal readset\n", i);
             FD_CLR(i, &readset);
             // Chiudo senza interessarmi della corretta terminazione dei client
             close(i);
+            if ( DEBUG ) printf("SERVER: Ho chiuso il file descriptor %d\n", i);
         }
+
+        if ( DEBUG ) printf("SERVER: Ho chiuso tutte le connessioni con i client\n");
 
         for ( int i = 0; i < max_worker; i++ )
             pthread_join(worker[i], NULL);
 
+        if ( DEBUG ) printf("SERVER: Tutti i worker sono terminati correttamente\n");
+
     };
+
+    fclose(logfile);
+
+    deleteStorage(cache);
 
     deleteQ(fdqueue);
     free(fdqueue);
