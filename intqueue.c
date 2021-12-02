@@ -30,8 +30,6 @@ int isEmptySinchronized(intqueue_t* q){
 }
 
 int enqueue(intqueue_t* q, int fd){
-    if ( fd < 0 )
-        return -1;
 
     elem_t* new = malloc(sizeof(elem_t));
     if ( !new )
