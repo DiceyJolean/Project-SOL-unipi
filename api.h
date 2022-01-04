@@ -3,14 +3,6 @@
 #ifndef API_H
 #define API_H
 
-#ifndef OCREAT
-#define OCREAT 1
-#endif
-
-#ifndef OLOCK
-#define OLOCK 2
-#endif
-
 #if !defined(MAX_PATHNAME)
 #define MAX_PATHNAME 512
 #endif
