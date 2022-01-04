@@ -61,10 +61,10 @@ int closeConnection(const char* sockname);
  *  @param pathname File da creare
  *  @param flags    O_CREATE e/o O_LOCK
  * 
- * @exception	EPIPE se il server ha chiuso la comunicazione\n
- * 				ENOENT se il pathname non è presente in cache\n
- *              EINVAL se il pathname non corrisponde a un file su disco\n
- * 				EEXIST se era stata indicato il flag OCREAT e il file era già presente in cache
+ * @exception EPIPE se il server ha chiuso la comunicazione\n
+ *            ENOENT se il pathname non è presente in cache\n
+ *            EINVAL se il pathname non corrisponde a un file su disco\n
+ *            EEXIST se era stata indicato il flag OCREAT e il file era già presente in cache
  * 
  *  @return 0 in caso di successo, -1 in caso di fallimento
  */
@@ -80,9 +80,9 @@ int openFile(const char* pathname, int flags);
  *  @param size     Dimensione aggiornata del buffer
  * 
  * @exception	EPIPE se il server ha chiuso la comunicazione\n
- * 				ENOENT se il pathname non è presente in cache\n
- *              EINVAL se il pathname non corrisponde a un file su disco\n
- *              EPERM se il file è bloccato da un altro client, oppure se il client non ha aperto il file
+ *            ENOENT se il pathname non è presente in cache\n
+ *            EINVAL se il pathname non corrisponde a un file su disco\n
+ *            EPERM se il file è bloccato da un altro client, oppure se il client non ha aperto il file
  * 
  *  @return 0 in caso di successo, -1 in caso di fallimento
  */
@@ -110,11 +110,11 @@ int readNFiles(int N, const char* dirname);
  *  @param pathname File da copiare nel file server
  *  @param dirname  Cartella dove scrivere l'eventuale file espulso dal server
  * 
- * 	@exception	EPIPE se il server ha chiuso la comunicazione\n
- * 				ENOENT se il pathname non è presente in cache\n
+ * 	@exception  EPIPE se il server ha chiuso la comunicazione\n
+ * 				      ENOENT se il pathname non è presente in cache\n
  *              EINVAL se il pathname non corrisponde a un file su disco\n
  *              EPERM se il file è bloccato da un altro client, se l'operazione precedente non era una openFile(OCREAT), oppure se il client non ha aperto il file\n
- * 				EFBIG se il file è troppo grande
+ * 				      EFBIG se il file è troppo grande
  *
  *  @return 0 in caso di successo, -1 in caso di fallimento
  */
@@ -132,10 +132,10 @@ int writeFile(const char* pathname, const char*dirname);
  *  @param dirname  Cartella dove scrivere l'eventuale file espulso dal server
  *
  * 	@exception	EPIPE se il server ha chiuso la comunicazione\n
- * 				ENOENT se il pathname non è presente in cache\n
+ * 				      ENOENT se il pathname non è presente in cache\n
  *              EINVAL se il pathname non corrisponde a un file su disco\n
  *              EPERM se il file è bloccato da un altro client, oppure se il client non ha aperto il file\n
- * 				EFBIG se il contenuto da aggiungere è troppo grande
+ * 				      EFBIG se il contenuto da aggiungere è troppo grande
  * 
  *  @return 0 in caso di successo, -1 in caso di fallimento
  */
