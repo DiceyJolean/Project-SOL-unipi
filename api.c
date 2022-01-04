@@ -1,3 +1,4 @@
+// Erica Pistolesi 518169
 
 #ifndef API_H_
 #define API_H_
@@ -35,7 +36,9 @@
 #include "api.h"
 #include "util.h"
 
-static int fdc = -1;
+// File descriptor associato al client
+static int fdc;
+// Nome della socket con cui sono connesso
 static char* socketname = NULL;
 
 char* my_strcpy(char* dest){
@@ -77,10 +80,11 @@ int saveFile(char* filename, void* content){
 	// Nome "pulito" del file, senza il percorso completo
 	char* filecpy = my_strcpy(filename);
 	char* tmp = strrchr(filecpy, '/');
-	if ( DEBUG ) printf("api: Il nome del file senza il path assoluto è %s\n", ++tmp);
+	tmp++;
+	if ( DEBUG ) printf("api: Il nome del file senza il path assoluto è %s\n", tmp);
 
 	mode_t oldmask = umask(033);
-	FILE* file = fopen(++tmp, "w+");
+	FILE* file = fopen(tmp, "w+");
 
 	free(filecpy);
 	umask(oldmask);
@@ -88,8 +92,10 @@ int saveFile(char* filename, void* content){
 	if ( !file )
 		return -1;
 
-	if ( content )
+	if ( content ){
 		fputs(content, file);
+		fputs("\n", file);
+	}
 
 	fclose(file);
 
@@ -111,10 +117,12 @@ request_t* prepare_request(op_t op, int flag){
 	return req;
 }
 
+// Invia il pathname tramite socket, se il pathname non corrisponde a un file su disco fallisce con EINVAL
 int send_pathname(const char* pathname){
 
 	char* abspath = realpath(pathname, NULL);
 	if ( !abspath ){
+		printf("API: Errore nel generare il path assoluto di %s\n", pathname);
 		errno = EINVAL;
 		return -1;
 	}
@@ -135,6 +143,7 @@ int send_pathname(const char* pathname){
 
 int read_answer(){
 	int esito = -1; // Risposta da parte del server (0 o -1)
+	
 	errno = 0;
 	if ( read(fdc, &esito, sizeof(int)) == -1 || esito == -1 ){
 		errno = EPIPE;
@@ -149,18 +158,6 @@ double timespec_diff(const struct timespec after, const struct timespec before){
     return (double)(after.tv_sec - before.tv_sec) + (double)(after.tv_nsec - before.tv_nsec) / BILLION;
 }
 
-/** @brief  Viene aperta una connessione AF_UNIX al socket file sockname.
- *          Se il server non accetta immediatamente la richiesta di connessione,
- *          la connessione da parte del client viene ripetuta dopo ‘msec’ millisecondi
- *          e fino allo scadere del tempo assoluto ‘abstime’ specificato come terzo argomento.
- *          errno viene settato opportunamente.
- * 
- *  @param sockname Nome del file socket
- *  @param msec  Millisecondi dopo quanto viene eseguito un nuovo tentativo di connessione se il precedente fallisce
- *  @param abstime   Tempo assoluto di attesa per connettersi
- * 
- *  @return 0 in caso di successo; -1 in caso di fallimento
- */
 int openConnection(const char* sockname, int msec, const struct timespec abstime){
 
 	int connected = 0;
@@ -169,11 +166,10 @@ int openConnection(const char* sockname, int msec, const struct timespec abstime
 	
 	client_addr.sun_family = AF_UNIX;
 	strncpy(client_addr.sun_path, sockname, UNIX_PATH_MAX);
-    	
-	if ( ( fdc = socket(AF_UNIX, SOCK_STREAM, 0) ) == -1 ){
-		perror("Socket");
+	fdc = socket(AF_UNIX, SOCK_STREAM, 0);
+	
+	if ( fdc == -1 )
 		return -1;
-	}
 
     struct timespec now;
     clock_gettime(CLOCK_REALTIME, &now);
@@ -182,10 +178,8 @@ int openConnection(const char* sockname, int msec, const struct timespec abstime
 		if ( ( connect(fdc,(struct sockaddr *)&client_addr, sizeof(client_addr)) ) == -1 ) {
 			if ( errno == ENOENT || errno == ECONNREFUSED )
 				sleep( msec );
-			else{
-				perror("Connect");
+			else
 				return -1;
-			}
 		}
 		else 
 			connected = 1 ;
@@ -202,13 +196,6 @@ int openConnection(const char* sockname, int msec, const struct timespec abstime
 	return 0;
 }
 
-/** @brief  Chiude la connessione AF_UNIX associata al socket file sockname.
- *          errno viene settato opportunamente.
- *          
- *  @param sockname Nome del file socket
- * 
- *  @return 0 in caso di successo; -1 in caso di fallimento
- */
 int closeConnection(const char* sockname){
 	
 	if ( fdc == -1 ){
@@ -238,27 +225,11 @@ int closeConnection(const char* sockname){
 	return 0;
 }
 
-/** @brief  Richiesta di apertura o di creazione di un file.
- *          La semantica della openFile dipende dai flags passati come
- *          secondo argomento che possono essere O_CREATE ed O_LOCK.
- *          Se viene passato il flag O_CREATE ed il file esiste già memorizzato nel server,
- *          oppure il file non esiste ed il flag O_CREATE non è stato specificato,
- *          viene ritornato un errore. In caso di successo, il file viene sempre aperto 
- *          in lettura e scrittura, ed in particolare le scritture possono avvenire solo in append.
- *          Se viene passato il flag O_LOCK (eventualmente in OR con O_CREATE) il file viene 
- *          aperto e/o creato in modalità locked, che vuol dire che l’unico che può leggere o 
- *          scrivere il file ‘pathname’ è il processo che lo ha aperto. Il flag O_LOCK può essere 
- *          esplicitamente resettato utilizzando la chiamata unlockFile, descritta di seguito. 
- *          errno viene settato opportunamente.
- * 
- *  @param pathname File da creare
- *  @param flags    O_CREATE e/o O_LOCK
- * 
- *  @return 0 in caso di successo; -1 in caso di fallimento
- */
 int openFile(const char* pathname, int flags){
 
 	request_t* req = prepare_request(OPEN_FILE, flags);
+	if ( !req )
+		return -1;
 
 	if ( writen(fdc, req, sizeof(request_t) ) == -1 ){
 		errno = EPIPE;
@@ -280,17 +251,6 @@ int openFile(const char* pathname, int flags){
 	return 0;
 }
 
-/** @brief  Legge tutto il contenuto del file dal server (se esiste) ritornando un puntatore 
- *          ad un'area allocata sullo heap nel parametro ‘buf’, mentre ‘size’ conterrà la dimensione del buffer
- *          dati (ossia la dimensione in bytes del file letto). In caso di errore, ‘buf‘ e ‘size’ non sono validi.
- *          errno viene settato opportunamente.
- * 
- *  @param pathname File da leggere
- *  @param buf      Area sullo heap dove vengono allocati i bytes letti (?)
- *  @param size     Dimensione aggiornata del buffer
- * 
- *  @return 0 in caso di successo; -1 in caso di fallimento
- */
 int readFile(const char* pathname, void** buf, size_t* size){
 
 	request_t* req = prepare_request(READ_FILE, 0);
@@ -300,6 +260,7 @@ int readFile(const char* pathname, void** buf, size_t* size){
 	if ( !size )
 		size = malloc(sizeof(size_t));
 
+	*size = 0;
 	if ( writen(fdc, req, sizeof(request_t)) == -1 ){
 		errno = EPIPE;
 		return -1;
@@ -315,17 +276,16 @@ int readFile(const char* pathname, void** buf, size_t* size){
 		return -1;
 	}
 
-	size_t n = -1; // Numero di bytes del file da salvare in buf
+	size_t n = 0; // Numero di bytes del file da salvare in buf
 	errno = 0;
-	if ( read(fdc, &n, sizeof(size_t)) == -1 || n == -1 ){
+	if ( read(fdc, &n, sizeof(size_t)) == -1 ){
 		errno = EPIPE;
 		return -1;
 	}
 
 	*buf = NULL;
-	if ( n > 0 ){
-		// Devo conoscere la dimensione del file passato, in esito ci sarà il numero di bytes (n delle esercitazioni)
-		char* tmp = malloc(n+1);
+	char* tmp = malloc(n+1);
+	if ( tmp ){
 		memset(tmp, 0, n+1);
 		
 		if ( readn(fdc, tmp, n) == -1 ){
@@ -334,20 +294,17 @@ int readFile(const char* pathname, void** buf, size_t* size){
 		}
 		tmp[n] = '\0';
 		*buf = tmp;
+		*size = n;
 	}
-	*size = n;
+	else{
+		errno = ENOMEM;
+		return -1;
+	}
 
 	free(req);
 	return 0;
 }
 
-/**	@brief 	Richiede al server la lettura di ‘N’ files qualsiasi da memorizzare nella directory ‘dirname’ lato client.
- * 			Se il server ha meno di ‘N’ file disponibili, li invia tutti. Se N<=0 la richiesta al server è quella di
- * 			leggere tutti i file memorizzati al suo interno. Ritorna un valore maggiore o uguale a 0 in caso di successo
- * 
- * 	@param	N Numero di file da leggere
- * 	@param	dirname Se diverso da NULL, cartella dove scrivere i file letti
-*/
 int readNFiles(int N, const char* dirname){
 
 	request_t* req = prepare_request(READ_N_FILES, N);
@@ -429,7 +386,7 @@ int readNFiles(int N, const char* dirname){
 			// Salvo il file
 			if ( saveFile(filename, buf) != 0 ){
 				if ( DEBUG ) printf("api: Errore nella creazione del file %s\n", filename);
-				else if ( DEBUG ) printf("api: Creazione del %s eseguita con successo\n", filename);
+				else if ( DEBUG ) printf("api: Creazione del file %s eseguita con successo\n", filename);
 			}
 		}
 
@@ -445,17 +402,6 @@ int readNFiles(int N, const char* dirname){
 	return 0;
 }
 
-/** @brief  Scrive tutto il file puntato da pathname nel file server. Ritorna successo solo se la precedente operazione,
- *          terminata con successo, è stata openFile(pathname,O_CREATE|O_LOCK). Se ‘dirname’ è diverso da NULL,
- *          il file eventualmente spedito dal server perchè espulso dalla cache per far posto al file ‘pathname’ dovrà
- *          essere scritto in ‘dirname’.
- *          errno viene settato opportunamente.
- * 
- *  @param pathname File da copiare nel file server
- *  @param dirname  Cartella dove scrivere l'eventuale file espulso dal server
- *
- *  @return 0 in caso di successo; -1 in caso di fallimento
- */
 int writeFile(const char* pathname, const char* dirname){
 
 	int fdfile = open(pathname, O_RDONLY);
@@ -467,11 +413,11 @@ int writeFile(const char* pathname, const char* dirname){
 		return -1; // errno già settato dalla stat
 	
 	size_t size = info.st_size+1;
-	char* buf = malloc(size);
+	void* buf = malloc(size);
 	memset(buf, 0, size);
 	readn(fdfile, buf, size);
 	close(fdfile);
-
+   
 	request_t* req = prepare_request(WRITE_FILE, 0);
 	if ( !req )
 		return -1;
@@ -484,14 +430,6 @@ int writeFile(const char* pathname, const char* dirname){
 	if ( send_pathname(pathname) )
 		return -1;
 
-	// Aggiungo il terminatore \0
-	if ( buf[size-1] != '\0' ){
-		if ( DEBUG ) printf("API: Aggiungo il terminatore al file %s\n", pathname);
-		size++;
-		buf = realloc(buf, size);
-		buf[size-1] = '\0';
-	}
-
 	// Comunico quanti bytes voglio scrivere
 	if ( DEBUG )	printf("\nAPI: Sto per inviare %ld bytes\n\n", size);
 	if ( writen(fdc, &size, sizeof(size_t)) == -1 ){
@@ -499,7 +437,7 @@ int writeFile(const char* pathname, const char* dirname){
 		return -1;
 	}
 
-	if ( DEBUG )	printf("\nAPI: Sto per inviare il contenuto \"%s\"\n\n", buf);
+	if ( DEBUG )	printf("\nAPI: Sto per inviare il contenuto \"%s\"\n\n", (char*)buf);
 	// Invio il contenuto da scrivere
 	if ( writen(fdc, buf, size) == -1 ){
 		errno = EPIPE;
@@ -508,12 +446,15 @@ int writeFile(const char* pathname, const char* dirname){
 
 	int reply;
 	if ( DEBUG ) printf("\nAPI: Attendo la risposta dal server\n\n");
+	/*
 	if ( ( reply = read_answer()) != 0 ){
 		if ( DEBUG ) printf("\nAPI: Il server ha risposto - %s\n\n", strerror(reply));
 		free(req);
 		errno = reply;
 		return -1;
 	}
+	*/
+	reply = read_answer();
 	if ( DEBUG ) printf("\nAPI: Il server ha risposto - %s\n\n", strerror(reply));
 
 	int len = 0; // numero di file espulsi
@@ -592,22 +533,14 @@ int writeFile(const char* pathname, const char* dirname){
 	if ( dirname ) chdir(currentdir);
 	free(currentdir);
 
+	if ( reply ){
+		errno = reply;
+		return -1;
+	}
+
 	return 0;
 }
 
-/** @brief  Richiesta di scrivere in append al file ‘pathname‘ i ‘size‘ bytes contenuti nel buffer ‘buf’.
- *          L’operazione di append nel file è garantita essere atomica dal file server. Se ‘dirname’ è diverso da NULL,
- *          il file eventualmente spedito dal server perchè espulso dalla cache per far posto ai nuovi dati di
- *          ‘pathname’ dovrà essere scritto in ‘dirname’.
- *          errno viene settato opportunamente.
- * 
- *  @param pathname File su cui scrivere in append
- *  @param buf      Contenuto da scrivere sul file
- *  @param size     Bytes da scrivere
- *  @param dirname  Cartella dove scrivere l'eventuale file espulso dal server
- * 
- *  @return 0 in caso di successo; -1 in caso di fallimento
- */
 int appendToFile(const char* pathname, void* buf, size_t size, const char* dirname){
 
 	request_t* req = prepare_request(APPEND_FILE, 0);
@@ -622,13 +555,18 @@ int appendToFile(const char* pathname, void* buf, size_t size, const char* dirna
 	if ( send_pathname(pathname) )
 		return -1;
 
+	if ( !buf )
+		buf = malloc(size);
+
 	// Comunico quanti bytes voglio scrivere
+	if ( DEBUG ) printf("API: Comunico al server che voglio scrivere %ld bytes in append\n", size);
 	if ( writen(fdc, &size, sizeof(size_t)) == -1 ){
 		errno = EPIPE;
 		return -1;
 	}
 
 	// Invio il contenuto da scrivere in append
+	if ( DEBUG ) printf("API: Invio al server il contenuto da scrivere in append\n");
 	if ( writen(fdc, buf, size) == -1 ){
 		errno = EPIPE;
 		return -1;
@@ -636,11 +574,10 @@ int appendToFile(const char* pathname, void* buf, size_t size, const char* dirna
 
 	// Mi aspetto l'esito della scrittura come risposta
 	int reply;
-	if ( ( reply = read_answer()) != 0 ){
-		free(req);
-		errno = reply;
-		return -1;
-	}
+	if ( DEBUG ) printf("\nAPI: Attendo la risposta dal server\n\n");
+	
+	reply = read_answer();
+	if ( DEBUG ) printf("\nAPI: Il server ha risposto - %s\n\n", strerror(reply));
 
 	int n = 0; // numero di file espulsi
 	if ( read(fdc, &n, sizeof(int)) == -1 ){
@@ -721,7 +658,10 @@ int appendToFile(const char* pathname, void* buf, size_t size, const char* dirna
 			// Creo finalmente il file dove scrivere il contenuto letto in binario
 			FILE* file = fopen(path, "w+");
 			umask(oldmask);
-			if (buf) fputs(buf, file);
+			if (buf){
+				fputs(buf, file);
+				fputs("\n", file);
+			}
 			fclose(file);
 			
 			free(path);
@@ -735,14 +675,6 @@ int appendToFile(const char* pathname, void* buf, size_t size, const char* dirna
 	return 0;
 }
 
-/** @brief  Richiesta di chiusura del file puntato da ‘pathname’.
- *          Eventuali operazioni sul file dopo la closeFile falliscono.
- *          errno viene settato opportunamente.
- * 
- *  @param pathname File da chiudere
- * 
- *  @return 0 in caso di successo; -1 in caso di fallimento
- */
 int closeFile(const char* pathname){
 
 	request_t* req = prepare_request(CLOSE_FILE, 0);
@@ -769,16 +701,6 @@ int closeFile(const char* pathname){
 	return 0;
 }
 
-/** @brief 	Richiesta di mutua esclusione sul file indicato da 'pathname'.
- * 			Se il file era già lockato da un altro client, chi fa la
- * 			richiesta viene sospeso fino a che chi detiene la lock non la rilascia.
- * 			errno viene settato opportunamente
- * 
- * 	@param pathname File da lockare
- * 
- * 	@return 0 in caso di successo, -1 in caso di fallimento
- * 
- */
 int lockFile(const char* pathname){
 
 	request_t* req = prepare_request(LOCK_FILE, 0);
@@ -794,6 +716,7 @@ int lockFile(const char* pathname){
 		return -1;
 
 	int reply; // Capisco se l'operazione è andata a buon fine
+	// Rimarrò in attesa su questa read finché non ottengo la lock oppure non ricevo un errore
 	if ( ( reply = read_answer()) ){
 		free(req);
 		errno = reply;
@@ -805,15 +728,6 @@ int lockFile(const char* pathname){
     return  0;
 }
 
-/**
- * 	@brief	Richiesta di rilasciare la mutua esclusione sul file
- * 			indicato da 'pathname',
- * 			errno viene settato opportunamente
- * 
- * 	@param pathname File da unlockare
- * 
- * 	@return 0 in caso di successo, -1 in caso di fallimento
- */
 int unlockFile(const char* pathname){
 
 	request_t* req = prepare_request(UNLOCK_FILE, 0);
@@ -829,6 +743,7 @@ int unlockFile(const char* pathname){
 		return -1;
 	
 	int reply; // Capisco se l'operazione è andata a buon fine
+	if ( DEBUG ) printf("API: Attendo la risposta dal Server\n");
 	if ( ( reply = read_answer()) ){
 		free(req);
 		errno = reply;
@@ -840,14 +755,6 @@ int unlockFile(const char* pathname){
     return  0;
 }
 
-/**
- * 	@brief	Richiesta di rimuovere dallo storage il file indicato da 'pathname'
- * 			errno viene settato opportunamente
- * 
- * 	@param pathname File da rimuovere
- * 
- * 	@return 0 in caso di successo, -1 in caso di fallimento
- */
 int removeFile(const char* pathname){
 
 	request_t* req = prepare_request(REMOVE_FILE, 0);
