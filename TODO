@@ -1,3 +1,0 @@
-- alternativa al parsing con getopt?
-- coda dei file senza Queue.h? Differenziando quelli in read da quelli in write
-- testare la terminazione del server con i segnali
