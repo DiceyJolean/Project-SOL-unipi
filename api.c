@@ -446,14 +446,7 @@ int writeFile(const char* pathname, const char* dirname){
 
 	int reply;
 	if ( DEBUG ) printf("\nAPI: Attendo la risposta dal server\n\n");
-	/*
-	if ( ( reply = read_answer()) != 0 ){
-		if ( DEBUG ) printf("\nAPI: Il server ha risposto - %s\n\n", strerror(reply));
-		free(req);
-		errno = reply;
-		return -1;
-	}
-	*/
+	
 	reply = read_answer();
 	if ( DEBUG ) printf("\nAPI: Il server ha risposto - %s\n\n", strerror(reply));
 
