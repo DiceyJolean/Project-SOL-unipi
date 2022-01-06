@@ -16,8 +16,6 @@ typedef struct Queue {
     Node_t      *head; // elemento di testa
     Node_t      *tail; // elemento di coda
     size_t      len;  // lunghezza
-    pthread_mutex_t qlock;
-    pthread_cond_t  qcond;
 } Queue_t;
 
 void printQueue(Queue_t *q);
@@ -84,4 +82,4 @@ unsigned long length(Queue_t* q);
  */
 int deleteQueue(Queue_t *q);
 
-#endif //INTQUEUE_H
+#endif //QUEUE_H
