@@ -1,3 +1,5 @@
+// ERICA PISTOLESI 518169
+
 #ifndef INTQUEUE_H
 #define INTQUEUE_H
 
@@ -92,5 +94,7 @@ int deleteElem(intqueue_t* q, int fd);
  *  @return 0 in caso di successo, -1 altrimenti
  */
 int deleteQ(intqueue_t* q);
+
+void printIntQueue(intqueue_t* q);
 
 #endif //INTQUEUE_H
