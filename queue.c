@@ -10,10 +10,6 @@ Queue_t* initQueue(){
 
     q->head = q->tail = NULL;
     q->len = 0;
-    if ( pthread_mutex_init(&q->qlock, NULL) != 0 )
-        return NULL;
-    if ( pthread_cond_init(&q->qcond, NULL) != 0 )
-        return NULL;
 
     return q;
 }
@@ -33,8 +29,6 @@ int push(Queue_t *q, void* elem){
     new->data = elem;
     new->next = NULL;
 
-    if ( pthread_mutex_lock(&q->qlock) != 0 )
-        return -1;
 
     if ( q->head == NULL )
         q->head = q->tail = new;
@@ -44,19 +38,10 @@ int push(Queue_t *q, void* elem){
     }
     q->len++;
 
-    if ( pthread_mutex_unlock(&q->qlock) != 0 )
-        return -1;
-
-    if ( pthread_cond_signal(&q->qcond) != 0 )
-        return -1;
-
     return 0;
 }
 
 int delete(Queue_t* q, void* elem){
-
-    if ( pthread_mutex_lock(&q->qlock) != 0 )
-        return -1;
 
     Node_t* corr = q->head, *prec = corr;
     while ( corr ){
@@ -80,8 +65,7 @@ int delete(Queue_t* q, void* elem){
 
             // free(corr->data); TODO
             free(corr);
-            if ( pthread_mutex_unlock(&q->qlock) != 0 )
-                return -1;
+            q->len--;
 
             return 0;
         }
@@ -91,27 +75,19 @@ int delete(Queue_t* q, void* elem){
         }
     }
 
-    if ( pthread_mutex_unlock(&q->qlock) != 0 )
-        return -1;
-
     return 0;
 }
 
 void printQueue(Queue_t *q){
     for ( Node_t* corr = q->head; corr; corr = corr->next )
-        printf("%s\n", corr->data);
+        printf("%s\n", (char*)corr->data);
 
 }
 
 void* pop(Queue_t *q){
-    if ( pthread_mutex_lock(&q->qlock) != 0 )
+    if ( isEmpty(q) )
         return NULL;
-
-    if ( isEmpty(q) ){
-        if ( pthread_mutex_unlock(&q->qlock) != 0 )
-        return NULL;
-        // pthread_cond_wait(&q->qcond, &q->qlock); // Non credo serva in questo contesto
-    }
+    
     void* elem = q->head->data;
     if ( q->head == q->tail ){
         // c'è un unico elemento in coda
@@ -126,28 +102,17 @@ void* pop(Queue_t *q){
     }
     q->len--;
     assert(q->len >= 0);
-    if ( pthread_mutex_unlock(&q->qlock) != 0 )
-        return NULL;
 
     return elem;
 }
 
 size_t length(Queue_t* q){
-    size_t len;
-    pthread_mutex_destroy(&q->qlock);
-    assert(q->len >= 0);
-    len = q->len;
-    pthread_mutex_unlock(&q->qlock);
-
-    return len;
+    return q->len;
 }
 
 int deleteQueue(Queue_t *q){
-    if ( pthread_mutex_lock(&q->qlock) != 0 )
-        return -1;
     if ( isEmpty(q) ){
-        if ( pthread_mutex_unlock(&q->qlock) != 0 )
-            return -1;
+        free(q);
         return 0;
     }
 
@@ -163,11 +128,6 @@ int deleteQueue(Queue_t *q){
     free(tmp);
 
     q->head = q->tail = NULL;
-    if ( pthread_mutex_unlock(&q->qlock) != 0 )
-        return -1;
-
-    pthread_mutex_destroy(&q->qlock);
-    pthread_cond_destroy(&q->qcond);
     free(q->head);
     free(q);
 
