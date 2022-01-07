@@ -1,5 +1,8 @@
+// ERICA PISTOLESI 518169
+
 #include <stdlib.h>
 #include <pthread.h>
+#include <stdio.h>
 
 #include "intqueue.h"
 
@@ -172,6 +175,7 @@ int deleteQ(intqueue_t* q){
     if ( q->head == NULL ){
         if ( pthread_mutex_unlock(&q->qlock) != 0 )
             return -1;
+        free(q);
         return 0;
     }
 
@@ -188,4 +192,12 @@ int deleteQ(intqueue_t* q){
     free(q);
 
     return 0;
+}
+
+void printIntQueue(intqueue_t* q){
+    printf("INT_QUEUE: Stampo la coda di fd\n");
+    for ( elem_t* tmp = q->head; tmp; tmp = tmp->next)
+        printf("%d - ", tmp->fd);
+    
+    printf("\n");
 }
