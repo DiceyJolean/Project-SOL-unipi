@@ -46,38 +46,6 @@ static void print_usage(char* programname){
     , programname);
 }
 
-// Esegue la copia di una stringa allocando la memoria
-char* my_strcpy(char* dest){
-    int len = (strlen(dest)+1)*sizeof(char);
-
-    char* src = malloc(len);
-    memset(src, 0, len);
-    strncpy(src, dest, len);
-
-    if ( !src )
-        return NULL;
-
-    return src;
-}
-
-// Se non esiste, crea l'albero di directory dirname
-int my_mkdirP(char* dirname){
-    for (char* p = strchr(dirname + 1, '/'); p; p = strchr(p + 1, '/')) {
-        *p = '\0';
-        if (mkdir(dirname, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
-            if (errno != EEXIST) {
-                *p = '/';
-                printf("my_mkdirP: Errore nella creazione di %s - %s\n", dirname, strerror(errno));
-                return -1;
-            }
-        }
-        *p = '/';
-    }
-    if ( DEBUG ) printf("my_mkdirP: Ho creato la directory %s, il path assoluto è %s\n", dirname, realpath(dirname, NULL));
-
-    return 0;
-}
-
 // Funzione che ricorsivamente legge al più n file nella cartella dirname e nelle sue sottocartelle e li inserisce in q
 int fileToWrite(int n, char* dirname, Queue_t* q);
 
@@ -554,7 +522,6 @@ int main(int argc, char* argv[]){
                         else printf("CLIENT %d: writeFile fallita - %s\n", pid, strerror(err));
                     }
 
-                    /*
                     // Se la writeFile fallisce con EPERM provo a scrivere in append
                     if ( err == EPERM ){
                         if ( DEBUG ) printf("CLIENT %d: Provo a eseguire una appendToFile visto che la writeFile non è permessa\n", pid);
@@ -579,7 +546,7 @@ int main(int argc, char* argv[]){
                         size_t size = info.st_size;
                         char* buf = malloc(size);
                         memset(buf, 0, size);
-                        readn(fdfile, buf, size);
+                        read(fdfile, buf, size);
                         close(fdfile);
 
                         esito = appendToFile(filename, buf, size, dir_espulsi);
@@ -591,7 +558,6 @@ int main(int argc, char* argv[]){
 
                         free(buf);
                     }
-                    */
 
                     if ( DEBUG ) printf("CLIENT %d: Richiedo una unlockFile\n", pid);        
                     errno = 0;
@@ -671,7 +637,6 @@ int main(int argc, char* argv[]){
                         else printf("CLIENT %d: writeFile fallita - %s\n", pid, strerror(err));
                     }
 
-                    /*
                     // Se la writeFile fallisce con EPERM si prova a fare la appendFile
                     if ( err == EPERM ){
                         if ( DEBUG ) printf("CLIENT %d: Provo a eseguire una appendToFile visto che la writeFile non è permessa\n", pid);
@@ -696,7 +661,7 @@ int main(int argc, char* argv[]){
                         size_t size = info.st_size;
                         char* buf = malloc(size);
                         memset(buf, 0, size);
-                        readn(fdfile, buf, size);
+                        read(fdfile, buf, size);
                         close(fdfile);
 
                         esito = appendToFile(token, buf, size, dir_espulsi);
@@ -708,7 +673,6 @@ int main(int argc, char* argv[]){
 
                         free(buf);
                     }
-                    */
                     
                     if ( DEBUG ) printf("CLIENT %d: Richiedo una unlockFile\n", pid);        
                     errno = 0;
