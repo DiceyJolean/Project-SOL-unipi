@@ -24,16 +24,11 @@ echo "Numero di OPEN_FILE con LOCK eseguite: $OPENLOCK_NO"
 CLOSE_NO=$(awk '/CLOSE/ {print}' "${LOG_FILE}" | wc -l)
 echo "Numero di CLOSE_FILE eseguite: $CLOSE_NO"
 
+REMOVE_NO=$(awk '/REMOVE/ {print}' "${LOG_FILE}" | wc -l)
+echo "Numero di REMOVE_FILE eseguite: $REMOVE_NO"
+
 CACHE_MISS_NO=$(awk '/CACHE_MISS/ {print}' "${LOG_FILE}" | wc -l)
 echo "Numero di CACHE_MISS eseguite: $CACHE_MISS_NO"
-
-MAX=$(awk '/MAX/' ${LOG_FILE})
-REMAINING=$(awk '/RIMANENTI/' "$LOG_FILE")
-WORKER=$(awk '/eseguite/' "$LOG_FILE")
-
-echo "$MAX"
-echo "$REMAINING"
-echo "$WORKER"
 
 READ_BYTES=$(awk -F ' ' '$4 ~ /READ/ {sum += $10} END {print sum}' $LOG_FILE)
 echo "Bytes letti in media: $(($READ_BYTES / $READ_NO))"
