@@ -862,19 +862,28 @@ int S_appendFile(storage_t* cache, char* pathname, int idClient, Queue_t* victim
             return -1;
         }
 
+    int newsize = 0;
     // Alloco lo spazio per il nuovo contenuto sia se era vuoto sia se devo espanderlo
-    file->content = ( !file->content ) ? malloc(size) : realloc(file->content, size+file->size);
+    if ( !file->content ){
+        newsize = size;
+        file->content = malloc(newsize);
+    }
+    else {
+        newsize = size -1; // Tolgo il vecchio terminatore di file
+        file->content = realloc(file->content, newsize+file->size);
+        file->size--;
+    }
     if ( !file->content ){
         errno = EFATAL;
         endWriteCache(cache);
         return -1;
     }
 
-    memset(file->content + file->size, 0, size);
-    memcpy(file->content + file->size, content, size);
-    file->size += size;
+    memset(file->content + file->size, 0, newsize);
+    memcpy(file->content + file->size, content, newsize);
+    file->size += newsize;
 
-    cache->actual_size += size;
+    cache->actual_size += newsize;
     // Aggiorno il massimo di spazio occupato in memoria
     cache->max_used_size = ( cache->max_used_size > cache->actual_size ) ? cache->max_used_size : cache->actual_size;
 
