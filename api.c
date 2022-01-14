@@ -1,4 +1,4 @@
-// Erica Pistolesi 518169
+// ERICA PISTOLESI 518169
 
 #ifndef API_H_
 #define API_H_
@@ -61,7 +61,7 @@ int my_mkdirP(char* dirname){
         if (mkdir(dirname, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
             if (errno != EEXIST) {
                 *p = '/';
-                printf("my_mkdirP: Errore nella creazione di %s - %s\n", dirname, strerror(errno));
+                if ( DEBUG ) printf("my_mkdirP: Errore nella creazione di %s - %s\n", dirname, strerror(errno));
                 return -1;
             }
         }
@@ -102,38 +102,41 @@ int saveFile(char* filename, void* content){
 	return 0;
 }
 
-request_t* prepare_request(op_t op, int flag){
+int send_request(op_t op, int flag, const char* pathname){
 	
 	request_t* req = malloc(sizeof(request_t));
 	if ( !req ){
 		errno = ENOMEM;
-		return NULL;
+		return -1;
 	}
 	memset(req, 0, sizeof(request_t));
 	req->fd = fdc;
 	req->op = op;
 	req->flags_N = flag;
 
-	return req;
-}
-
-// Invia il pathname tramite socket, se il pathname non corrisponde a un file su disco fallisce con EINVAL
-int send_pathname(const char* pathname){
-
 	char* abspath = realpath(pathname, NULL);
 	if ( !abspath ){
-		printf("API: Errore nel generare il path assoluto di %s\n", pathname);
+		if ( DEBUG ) printf("API: Errore nel generare il path assoluto di %s\n", pathname);
+		free(req);
 		errno = EINVAL;
+		return -1;
+	}
+
+	if ( writen(fdc, req, sizeof(request_t) ) == -1 ){
+		free(req);
+		errno = EPIPE;
 		return -1;
 	}
 
 	int n = strlen(abspath)+1;
 
 	if ( write(fdc, &n, sizeof(int)) == -1){
+		free(req);
 		errno = EPIPE;
 		return -1;
 	}
 	if ( writen(fdc, abspath, n) == -1){
+		free(req);
 		errno = EPIPE;
 		return -1;
 	}
@@ -208,9 +211,13 @@ int closeConnection(const char* sockname){
 		return -1;
 	}
 
-	request_t* req = prepare_request(CLOSE_CONNECTION, 0);
+	request_t* req = malloc(sizeof(request_t));
 	if ( !req )
 		return -1;
+
+	req->fd = fdc;
+	req->flags_N = 0;
+	req->op = CLOSE_CONNECTION;
 
 	if ( writen(fdc, req, sizeof(request_t)) == -1 ){
 		errno = EPIPE;
@@ -227,51 +234,30 @@ int closeConnection(const char* sockname){
 
 int openFile(const char* pathname, int flags){
 
-	request_t* req = prepare_request(OPEN_FILE, flags);
-	if ( !req )
-		return -1;
-
-	if ( writen(fdc, req, sizeof(request_t) ) == -1 ){
-		errno = EPIPE;
-		return -1;
-	}
-
-	if ( send_pathname(pathname) )
+	if ( send_request(OPEN_FILE, flags, pathname) != 0 )
 		return -1;
 
 	int reply;
 	if ( ( reply = read_answer()) ){
-		free(req);
 		errno = reply;
 		return -1;
 	}
-
-	free(req);
 
 	return 0;
 }
 
 int readFile(const char* pathname, void** buf, size_t* size){
 
-	request_t* req = prepare_request(READ_FILE, 0);
-	if ( !req )
+	if ( send_request(READ_FILE, 0, pathname) != 0 )
 		return -1;
 
 	if ( !size )
 		size = malloc(sizeof(size_t));
 
 	*size = 0;
-	if ( writen(fdc, req, sizeof(request_t)) == -1 ){
-		errno = EPIPE;
-		return -1;
-	}
-
-	if ( send_pathname(pathname) )
-		return -1;
 
 	int reply; // Capisco se l'operazione è andata a buon fine
 	if ( ( reply = read_answer()) != 0 ){
-		free(req);
 		errno = reply;
 		return -1;
 	}
@@ -301,24 +287,30 @@ int readFile(const char* pathname, void** buf, size_t* size){
 		return -1;
 	}
 
-	free(req);
 	return 0;
 }
 
 int readNFiles(int N, const char* dirname){
 
-	request_t* req = prepare_request(READ_N_FILES, N);
-	if ( !req )
+	request_t* req = malloc(sizeof(request_t));
+	if ( !req ){
+		errno = ENOMEM;
 		return -1;
+	}
+	memset(req, 0, sizeof(request_t));
+	req->fd = fdc;
+	req->flags_N = 0;
+	req->op = READ_N_FILES;
 
 	if ( writen(fdc, req, sizeof(request_t)) == -1 ){
 		errno = EPIPE;
 		return -1;
 	}
 
+	free(req);
+
 	int reply; // Capisco se l'operazione è andata a buon fine
 	if ( ( reply = read_answer()) != 0 ){
-		free(req);
 		errno = reply;
 		return -1;
 	}
@@ -397,7 +389,6 @@ int readNFiles(int N, const char* dirname){
 
 	if ( dirname ) chdir(currentdir);
 	free(currentdir);
-	free(req);
 
 	return 0;
 }
@@ -417,17 +408,8 @@ int writeFile(const char* pathname, const char* dirname){
 	memset(buf, 0, size);
 	readn(fdfile, buf, size);
 	close(fdfile);
-   
-	request_t* req = prepare_request(WRITE_FILE, 0);
-	if ( !req )
-		return -1;
-	
-	if ( writen(fdc, req, sizeof(request_t)) == -1 ){
-		errno = EPIPE;
-		return -1;
-	}
 
-	if ( send_pathname(pathname) )
+	if ( send_request(WRITE_FILE, 0, pathname) != 0 )
 		return -1;
 
 	// Comunico quanti bytes voglio scrivere
@@ -522,7 +504,6 @@ int writeFile(const char* pathname, const char* dirname){
 		buf = NULL;
 	}
 	
-	free(req);
 	if ( dirname ) chdir(currentdir);
 	free(currentdir);
 
@@ -536,16 +517,7 @@ int writeFile(const char* pathname, const char* dirname){
 
 int appendToFile(const char* pathname, void* buf, size_t size, const char* dirname){
 
-	request_t* req = prepare_request(APPEND_FILE, 0);
-	if ( !req )
-		return -1;
-
-	if ( writen(fdc, req, sizeof(request_t)) == -1 ){
-		errno = EPIPE;
-		return -1;
-	}
-
-	if ( send_pathname(pathname) )
+	if ( send_request(APPEND_FILE, 0, pathname) != 0 )
 		return -1;
 
 	if ( !buf )
@@ -670,105 +642,58 @@ int appendToFile(const char* pathname, void* buf, size_t size, const char* dirna
 
 int closeFile(const char* pathname){
 
-	request_t* req = prepare_request(CLOSE_FILE, 0);
-	if ( !req )
-		return -1;
-		
-	if ( writen(fdc, req, sizeof(request_t)) == -1 ){
-		errno = EPIPE;
-		return -1;
-	}
-
-	if ( send_pathname(pathname) )
+	if ( send_request(CLOSE_FILE, 0, pathname) != 0 )
 		return -1;
 
 	int reply; // Capisco se l'operazione è andata a buon fine
 	if ( ( reply = read_answer()) ){
-		free(req);
 		errno = reply;
 		return -1;
 	}
-
-	free(req);
 
 	return 0;
 }
 
 int lockFile(const char* pathname){
 
-	request_t* req = prepare_request(LOCK_FILE, 0);
-	if ( !req )
-		return -1;
-
-	if ( writen(fdc, req, sizeof(request_t)) == -1 ){
-		errno = EPIPE;
-		return -1;
-	}
-
-	if ( send_pathname(pathname) )
+	if ( send_request(LOCK_FILE, 0, pathname) != 0 )
 		return -1;
 
 	int reply; // Capisco se l'operazione è andata a buon fine
 	// Rimarrò in attesa su questa read finché non ottengo la lock oppure non ricevo un errore
 	if ( ( reply = read_answer()) ){
-		free(req);
 		errno = reply;
 		return -1;
 	}
-
-	free(req);
 
     return  0;
 }
 
 int unlockFile(const char* pathname){
 
-	request_t* req = prepare_request(UNLOCK_FILE, 0);
-	if ( !req )
+	if ( send_request(UNLOCK_FILE, 0, pathname) != 0 )
 		return -1;
 
-	if ( writen(fdc, req, sizeof(request_t)) == -1 ){
-		errno = EPIPE;
-		return -1;
-	}
-
-	if ( send_pathname(pathname) )
-		return -1;
-	
 	int reply; // Capisco se l'operazione è andata a buon fine
 	if ( DEBUG ) printf("API: Attendo la risposta dal Server\n");
 	if ( ( reply = read_answer()) ){
-		free(req);
 		errno = reply;
 		return -1;
 	}
-
-	free(req);
 
     return  0;
 }
 
 int removeFile(const char* pathname){
 
-	request_t* req = prepare_request(REMOVE_FILE, 0);
-
-	errno = 0;
-	if ( writen(fdc, req, sizeof(request_t)) == -1 ){
-		errno = EPIPE;
-		return -1;
-	}
-
-	if ( send_pathname(pathname) )
+	if ( send_request(REMOVE_FILE, 0, pathname) != 0 )
 		return -1;
 
 	int reply; // Capisco se l'operazione è andata a buon fine
 	if ( ( reply = read_answer()) ){
-		free(req);
 		errno = reply;
 		return -1;
 	}
-
-	free(req);
 
     return  0;
 }
