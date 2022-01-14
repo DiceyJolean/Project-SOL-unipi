@@ -13,4 +13,6 @@ sleep 0.3 &
 kill -s HUP $PID
 wait $PID
 
+cat stat.log
+
 exit 0
