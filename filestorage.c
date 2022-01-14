@@ -840,6 +840,9 @@ void* Worker(void* args){
 
                 if ( err ){ if ( DEBUG) printf("WORKER %d: S_removeFile fallita con errore - %s\n", tid, strerror(err)); }
                 else if ( DEBUG ) printf("WORKER %d: S_removeFile(%s) eseguita con successo\n", tid, pathname);
+                char name[10];
+                snprintf(name, 10, "WORKER %d", tid);
+                write_log(name, LOG_REMOVE_FILE, fd, pathname, 0, err);
 
                 // Comunico l'esito al client che ha richiesto la remove
                 if ( write(fd, &err, sizeof(int)) == -1 ){
