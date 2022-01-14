@@ -7,8 +7,22 @@
 #define MAX_PATHNAME 512
 #endif
 
+#ifndef OCREAT
+#define OCREAT 1
+#endif
+
+#ifndef OLOCK
+#define OLOCK 2
+#endif
+
 #include <unistd.h>
 #include <sys/time.h>
+
+// Esegue la copia di una stringa allocando la memoria
+char* my_strcpy(char* dest);
+
+// Se non esiste, crea l'albero di directory dirname
+int my_mkdirP(char* dirname);
 
 /** @brief  Viene aperta una connessione AF_UNIX al socket file sockname.
  *          Se il server non accetta immediatamente la richiesta di connessione,
