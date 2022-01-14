@@ -12,4 +12,6 @@ sleep 30 && kill -3 ${SERVER_PID}
 wait ${SERVER_PID}
 kill ${CLIENT_PID}
 
+cat stat.log
+
 exit 0
